@@ -1,23 +1,20 @@
 ARG PYTHON_ENV=python:3.10-slim
-ARG POETRY_VERSION=1.6.1
 
 FROM $PYTHON_ENV as build
 # Allow statements and log messages to immediately appear in the logs
 ENV PYTHONUNBUFFERED True
-
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends curl g++ libopencv-dev && \
+    apt-get install --yes --no-install-recommends curl g++ libopencv-dev python3.10-pip && \
     rm -rf /var/lib/apt/lists/*
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=${POETRY_VERSION} python3 -
+RUN pip install uv
 
 RUN mkdir -p /app
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml uv.lock ./
 
 ENV PATH="/root/.local/bin:$PATH"
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-root
+RUN uv sync
 
 FROM $PYTHON_ENV as prod
 
@@ -34,7 +31,7 @@ COPY --from=build /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=build /usr/local/bin/magic-pdf /usr/local/bin/magic-pdf
 COPY --from=build /usr/local/bin/uvicorn /usr/local/bin/uvicorn
 
-RUN python download_models.py
+RUN uv run python download_models.py
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "3000"]
 
